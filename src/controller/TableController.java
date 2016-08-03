@@ -24,8 +24,10 @@ public class TableController {
 	public boolean doPlay(Play play) {
 		try {
 			if ( checkPlay(play) ) {
-				this.table.getGameTable()[ play.getCol()][play.getRow() ] = play;
-				pCtrl.addPlayerPlay(play);
+				this.table.getGameTable()[play.getCol()][play.getRow()] = play;
+				this.pCtrl.addPlayerPlay(play);
+				this.pCtrl.remove(play.getCol() + "|" + play.getRow());
+				
 				return true;
 			}
 			return false;
@@ -43,7 +45,6 @@ public class TableController {
 	public boolean checkPlay(Play play) {
 		if ( !(this.table.getGameTable()[ play.getCol()][play.getRow() ].getPlay().equals(" ")) )
 			return false;
-		
 		return true;
 	}
 	

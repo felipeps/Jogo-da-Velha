@@ -9,13 +9,24 @@ import model.Table;
 public class PController {
 	
 	private ArrayList<String> playerPlays;
+	private ArrayList<String> playerPlaysAux;
 	private ArrayList<String> ownPlays;
+	private ArrayList<String> ownPlaysAux;
+	private ArrayList<String> availablePlays;
 	private String playPiece;
 	
 	public PController(String playPiece) {
 		this.playPiece = playPiece;
-		playerPlays = new ArrayList<String>();
-		ownPlays = new ArrayList<String>();
+		this.playerPlays = new ArrayList<String>();
+		this.playerPlaysAux = new ArrayList<String>();
+		this.ownPlays = new ArrayList<String>();
+		this.ownPlaysAux = new ArrayList<String>();
+		this.availablePlays = new ArrayList<String>();
+		
+		for(int x = 0; x < 3; x++) {
+			for(int y = 0; y < 3; y++)
+				availablePlays.add(x + "|" + y);
+		}
 	}
 	
 	public boolean doPlay(Table table, boolean firstToPlay) {
@@ -23,12 +34,24 @@ public class PController {
 		Integer row = 0;
 		String bestPlay;
 		String[] play = new String[2];
-		String[] randPlays = new String[3];
+		String[] randPlays = new String[9];
 		Random generator = new Random();
+		
+		if ( availablePlays.size() == 1 ) {
+			play = this.availablePlays.get(0).split("|");
+			col = new Integer(play[0]);
+			row = new Integer(play[2]);
+			
+			table.getGameTable()[col][row] = new Play(playPiece, "Computer", col, row);
+			
+			return true;
+		}
 		
 		if ( firstToPlay ) {
 			if ( this.ownPlays.size() == 0 ) {
-				randPlays[0] = "0|0"; randPlays[1] = "1|1"; randPlays[2] = "0|2";
+				randPlays[0] = "0|0"; randPlays[1] = "0|1"; randPlays[2] = "0|2";
+				randPlays[3] = "1|0"; randPlays[4] = "1|1"; randPlays[5] = "1|2";
+				randPlays[6] = "2|0"; randPlays[7] = "2|1"; randPlays[8] = "2|2";
 				
 				bestPlay = randPlays[generator.nextInt(randPlays.length)];
 				
@@ -46,9 +69,8 @@ public class PController {
 				if ( bestPlay == null ) {
 					bestPlay = checkPlayerAboutToWin(table);
 					
-					if ( bestPlay == null ) {
+					if ( bestPlay == null )
 						bestPlay = bestPlay(table);
-					}
 				}
 				
 				play = bestPlay.split("|");
@@ -66,106 +88,110 @@ public class PController {
 			if ( bestPlay == null ) {
 				bestPlay = checkPlayerAboutToWin(table);
 				
-				if ( bestPlay == null ) {
+				if ( bestPlay == null )
 					bestPlay = defensivePlay(table);
-				}
 			}
 			
 			play = bestPlay.split("|");
-			
 			col = new Integer(play[0]);
 			row = new Integer(play[2]);
 			
 			table.getGameTable()[col][row] = new Play(playPiece, "Computer", col, row);
 		}
 		
+		String availablePlayToRemove = col + "|" + row;
+		
+		this.availablePlays.remove(availablePlayToRemove);
 		this.ownPlays.add(col + "|" + row);
+		
 		return true;
 	}
 	
-	public String defensivePlay(Table table) {
-		String lastPlayerPlay = this.playerPlays.get(this.playerPlays.size() - 1);
-		ArrayList<String> randPlays = new ArrayList<String>();
-		Random generator = new Random();
+	private String defensivePlay(Table table) {
+		Table auxT = table.clone();
+		Table auxTBackup = null;
+		String aux;
+		String play = null;
+		String playerPlayPiece;
+		int[] chances = new int[2];
+		int[] biggerChance = new int[2];
 		
-		if ( this.ownPlays.size() == 0 ) {
-			if ( table.getGameTable()[1][1].getPlay().equals(" ") ) return "1|1";
-		}
+		chances[0] = 0; chances[0] = 0;
+		biggerChance[0] = 0; biggerChance[1] = 0;
 		
-		if ( lastPlayerPlay.equals("0|0") ) {
-			randPlays.add("0|1");
-			randPlays.add("1|0");
+		if ( this.playPiece.equals("O") ) playerPlayPiece = "X"; else playerPlayPiece = "O";
+		
+		this.playerPlaysAux = copyOwnPlays(this.playerPlays);
+		
+		for(int x = 0; x < table.getRows(); x++) {
+			for(int y = 0; y < table.getCols(); y++) {
+				aux = x + "|" + y;
+				
+				if ( !checkAllPlays(aux) ) {
+					this.playerPlaysAux.add(x + "|" + y);
+					auxT.getGameTable()[x][y] = new Play(playerPlayPiece, "Player", x, y);
+					auxTBackup = auxT.clone();
 			
-			return randPlays.get(generator.nextInt(randPlays.size()));
+					for(int r = 0; r < table.getRows(); r++ ) {
+						for(int c = 0; c < table.getCols(); c++) {
+							aux = r + "|" + c;
+							
+							if ( !checkAllPlays(aux) ) {
+								this.playerPlaysAux.add(r + "|" + c);
+								auxT.getGameTable()[r][c] = new Play(playerPlayPiece, "Player", r, c);
+								chances[0] = calculatePlayerChancesToWin(auxT);
+								
+								for(int t = 0; t < table.getRows(); t++ ) {
+									for(int l = 0; l < table.getCols(); l++) {
+										aux = t + "|" + l;
+										
+										if ( !checkAllPlays(aux) ) {
+											this.playerPlaysAux.add(t + "|" + l);
+											auxT.getGameTable()[t][l] = new Play(playerPlayPiece, "Player", t, l);
+											chances[1] = calculatePlayerChancesToWin(auxT);
+											
+											if ( chances[1] < biggerChance[1] ) {
+												if ( table.getGameTable()[x][y].getPlay().equals(" ") ) {
+													biggerChance[1] = chances[1];
+													play = x + "|" + y;
+												}
+											}
+										}
+										auxT = auxTBackup.clone();
+									}
+								}
+								
+								if ( chances[0] <= biggerChance[0] ) {
+									if ( table.getGameTable()[x][y].getPlay().equals(" ") ) {
+										biggerChance[0] = chances[0];
+										play = x + "|" + y;
+									}
+								}
+					/*			
+								else if ( chances[0] == biggerChance[0] ) {
+									if ( chances[1] <= biggerChance[1] ) {
+										if ( table.getGameTable()[x][y].getPlay().equals(" ") ) {
+											biggerChance[1] = chances[1];
+											play = x + "|" + y;
+										}
+									}
+								}*/
+							}
+							auxT = auxTBackup.clone();
+						}						
+					}
+				}
+				chances[0] = 0; chances[1] = 0;
+			}
+			this.ownPlaysAux = copyOwnPlays(this.ownPlays);
+			auxT = table.clone();
 		}
-		
-		if ( lastPlayerPlay.equals("0|1") ) {
-			randPlays.add("0|0");
-			randPlays.add("0|2");
-			randPlays.add("1|1");
-			
-			return randPlays.get(generator.nextInt(randPlays.size()));
-		}
-		
-		if ( lastPlayerPlay.equals("0|2") ) {
-			randPlays.add("0|1");
-			randPlays.add("1|2");
-			
-			return randPlays.get(generator.nextInt(randPlays.size()));
-		}
-		
-		if ( lastPlayerPlay.equals("1|0") ) {
-			randPlays.add("1|1");
-			randPlays.add("2|0");
-			
-			return randPlays.get(generator.nextInt(randPlays.size()));
-		}
-		
-		if ( lastPlayerPlay.equals("1|1") ) {
-			randPlays.add("1|0");
-			randPlays.add("1|2");
-			randPlays.add("0|1");
-			randPlays.add("2|1");
-			
-			return randPlays.get(generator.nextInt(randPlays.size()));
-		}
-		
-		if ( lastPlayerPlay.equals("1|2") ) {
-			randPlays.add("1|1");
-			randPlays.add("2|2");
-			
-			return randPlays.get(generator.nextInt(randPlays.size()));
-		}
-		
-		if ( lastPlayerPlay.equals("2|0") ) {
-			randPlays.add("2|1");
-			randPlays.add("1|0");
-			
-			return randPlays.get(generator.nextInt(randPlays.size()));
-		}
-		
-		if ( lastPlayerPlay.equals("2|1") ) {
-			randPlays.add("2|0");
-			randPlays.add("2|2");
-			randPlays.add("1|1");
-			
-			return randPlays.get(generator.nextInt(randPlays.size()));
-		}
-		
-		if ( lastPlayerPlay.equals("2|2") ) {
-			randPlays.add("2|1");
-			randPlays.add("1|2");
-			
-			return randPlays.get(generator.nextInt(randPlays.size()));
-		}
-		
-		return null;
+		return play;
 	}
 	
-	public String checkGonnaWin(Table table) {
-		if ( this.ownPlays.size() <= 1 ) {
+	private String checkGonnaWin(Table table) {
+		if ( this.ownPlays.size() <= 1 )
 			return null;
-		}
 		
 		if ( table.getGameTable()[0][0].getPlay().equals(this.playPiece) && 
 				table.getGameTable()[0][1].getPlay().equals(this.playPiece) ) {
@@ -328,855 +354,123 @@ public class PController {
 		return null;
 	}
 	
-	public String bestPlay(Table table) {
-		String lastPlay = "";
-		String beforeLastPlay = "";
-		boolean moreThanOnePlay = false;
+	private ArrayList<String> copyOwnPlays(ArrayList<String> original) {
+		ArrayList<String> copy = new ArrayList<String>();
+		String aux;
 		
-		if ( this.ownPlays.size() != 0 ) {	
-			Random generator = new Random();
-			String[] randPlays = new String[2];
-			ArrayList<Integer> randOptions;
-			
-			lastPlay = this.ownPlays.get(this.ownPlays.size() - 1);
-			
-			if ( this.ownPlays.size() > 1 ) {
-				beforeLastPlay = this.ownPlays.get(this.ownPlays.size() - 2);
-				moreThanOnePlay = true;
-			}
-			
-			if ( lastPlay.equals("0|0") ) {
-				if ( moreThanOnePlay ) {
-					if ( beforeLastPlay.equals("2|2") ) {
-						randOptions = new ArrayList<Integer>();
-						
-						randOptions.add(1); randOptions.add(2);
-						
-						do {
-							switch ( randOptions.get(generator.nextInt(randOptions.size())) ) {
-								case 1:
-									if ( table.getGameTable()[0][2].getPlay().equals(" ") &&
-											table.getGameTable()[1][2].getPlay().equals(" ") &&
-											table.getGameTable()[0][1].getPlay().equals(" "))
-										return "0|2";
-									randOptions.remove((Integer) 1);
-								
-								case 2:
-									if ( table.getGameTable()[2][0].getPlay().equals(" ") &&
-											table.getGameTable()[1][0].getPlay().equals(" ") &&
-											table.getGameTable()[2][1].getPlay().equals(" "))
-										return "2|0";
-									randOptions.remove((Integer) 2);
-							}
-						} while ( randOptions.size() > 0 );
-					}
-					
-					if ( beforeLastPlay.equals("2|0") ) {
-						randOptions = new ArrayList<Integer>();
-						
-						randOptions.add(1); randOptions.add(2); randOptions.add(3);
-						
-						do {
-							switch ( randOptions.get(generator.nextInt(randOptions.size())) ) {
-								case 1:
-									if ( table.getGameTable()[1][1].getPlay().equals(" ") &&
-											table.getGameTable()[0][2].getPlay().equals(" ") &&
-											table.getGameTable()[2][2].getPlay().equals(" ") )
-										return "1|1";
-									randOptions.remove((Integer) 1);
-								
-								case 2:
-									if ( table.getGameTable()[0][2].getPlay().equals(" ") &&
-											table.getGameTable()[1][1].getPlay().equals(" ") &&
-											table.getGameTable()[0][1].getPlay().equals(" ") )
-										return "0|2";
-									randOptions.remove((Integer) 2);
-								
-								case 3:
-									if ( table.getGameTable()[2][2].getPlay().equals(" ") &&
-											table.getGameTable()[2][1].getPlay().equals(" ") &&
-											table.getGameTable()[1][1].getPlay().equals(" ") )
-										return "2|2";	
-									randOptions.remove(3);
-							}
-						} while ( randOptions.size() > 0 );
-					}
-
-					if ( beforeLastPlay.equals("0|2") ) {
-						randOptions = new ArrayList<Integer>();
-						
-						randOptions.add(1); randOptions.add(2);
-						
-						do {
-							switch ( randOptions.get(generator.nextInt(randOptions.size())) ) {
-								case 1:
-									if ( table.getGameTable()[2][0].getPlay().equals(" ") &&
-											table.getGameTable()[1][0].getPlay().equals(" ") &&
-											table.getGameTable()[1][1].getPlay().equals(" ") )
-										return "2|0";
-									randOptions.remove((Integer) 1);
-									
-								case 2:
-									if ( table.getGameTable()[2][2].getPlay().equals(" ") &&
-											table.getGameTable()[1][2].getPlay().equals(" ") &&
-											table.getGameTable()[1][1].getPlay().equals(" "))
-										return "2|2";
-									randOptions.remove((Integer) 2);
-							}
-						
-						} while ( randOptions.size() > 0 );
-					}
-				}
-				
-				/* */
+		for(int x = 0; x < copy.size(); x++)
+			copy.set(x, null);
 		
-				randOptions = new ArrayList<Integer>();
-				
-				randOptions.add(1); randOptions.add(2); randOptions.add(3);
-				
-				do {
-					switch ( randOptions.get(generator.nextInt(randOptions.size())) ) {
-						case 1:
-							if ( table.getGameTable()[2][0].getPlay().equals(" ") ) {
-								//	1 1 / 0 2 / 2 2
-								if ( table.getGameTable()[1][1].getPlay().equals(" ") &&
-										table.getGameTable()[0][2].getPlay().equals(" ") &&
-										table.getGameTable()[2][2].getPlay().equals(" ") )
-									return "2|0";	
-								
-								// 0 2 / 1 1 / 0 1
-								if ( table.getGameTable()[0][2].getPlay().equals(" ") &&
-										table.getGameTable()[1][1].getPlay().equals(" ") &&
-										table.getGameTable()[0][1].getPlay().equals(" ") )
-									return "2|0";
-								
-								// 2 2 / 2 1 / 1 1
-								if ( table.getGameTable()[2][2].getPlay().equals(" ") &&
-										table.getGameTable()[2][1].getPlay().equals(" ") &&
-										table.getGameTable()[1][1].getPlay().equals(" ") )
-									return "2|0";
-							}
-							randOptions.remove((Integer) 1);
-							
-						case 2:
-							if ( table.getGameTable()[2][2].getPlay().equals(" ") ) {
-								// 0 2 / 1 2 / 0 1
-								if ( table.getGameTable()[0][2].getPlay().equals(" ") &&
-										table.getGameTable()[1][2].getPlay().equals(" ") &&
-										table.getGameTable()[0][1].getPlay().equals(" ") )
-									return "2|2";
-								
-								// 2 0 / 1 0 / 2 1
-								if ( table.getGameTable()[2][0].getPlay().equals(" ") &&
-										table.getGameTable()[1][0].getPlay().equals(" ") &&
-										table.getGameTable()[2][1].getPlay().equals(" ") )
-									return "2|2";
-							}
-							randOptions.remove((Integer) 2);
-							
-						case 3:
-							if ( table.getGameTable()[0][2].getPlay().equals(" ") ) {
-								// 2 0 / 1 0 / 1 1
-								if ( table.getGameTable()[2][0].getPlay().equals(" ") &&
-										table.getGameTable()[1][0].getPlay().equals(" ") &&
-										table.getGameTable()[1][1].getPlay().equals(" ") )
-									return "0|2";
-								
-								// 2 2 / 1 2 / 1 1
-								if ( table.getGameTable()[2][2].getPlay().equals(" ") &&
-										table.getGameTable()[1][2].getPlay().equals(" ") &&
-										table.getGameTable()[1][1].getPlay().equals(" ") )
-									return "0|2";
-							}
-							randOptions.remove((Integer) 3);
-					}
-				
-				} while ( randOptions.size() > 0 );
-				
-				/* */
-				
-				if ( table.getGameTable()[0][1].getPlay().equals(" ") &&
-						table.getGameTable()[0][2].getPlay().equals(" ") ) {
-					
-					randPlays[0] = "0|1"; randPlays[1] = "0|2";
-					
-					return randPlays[generator.nextInt(randPlays.length)];
-				}
-				
-				if ( table.getGameTable()[1][0].getPlay().equals(" ") &&
-						table.getGameTable()[2][0].getPlay().equals(" ") ) {
-					
-					randPlays[0] = "1|0"; randPlays[1] = "2|0";
-					
-					return randPlays[generator.nextInt(randPlays.length)];
-				}
-				
-				if ( table.getGameTable()[1][1].getPlay().equals(" ") &&
-						table.getGameTable()[2][2].getPlay().equals(" ") ) {
-
-					randPlays[0] = "1|1"; randPlays[1] = "2|2";
-					
-					return randPlays[generator.nextInt(randPlays.length)];
-				}
-			}
-			
-			/* FIM LASTPLAY 0|0 */
-			
-			if ( lastPlay.equals("0|1") ) {
-				if ( table.getGameTable()[0][0].getPlay().equals(" ") &&
-						table.getGameTable()[0][2].getPlay().equals(" ") ) {
-
-					randPlays[0] = "0|0"; randPlays[1] = "0|2";
-					
-					return randPlays[generator.nextInt(randPlays.length)];
-				
-				}
-				if ( table.getGameTable()[1][1].getPlay().equals(" ") &&
-						table.getGameTable()[2][1].getPlay().equals(" ") ) {
-					
-					randPlays[0] = "1|1"; randPlays[1] = "2|1";
-					
-					return randPlays[generator.nextInt(randPlays.length)];
-				}
-			}
-			
-			/* FIM LASTPLAY 0|1 */
-			
-			if ( lastPlay.equals("0|2") ) {
-				if ( moreThanOnePlay ) {
-					if ( beforeLastPlay.equals("0|0") ) {
-						randOptions = new ArrayList<Integer>();
-						
-						randOptions.add(1); randOptions.add(2);
-						
-						do {
-							switch ( randOptions.get(generator.nextInt(randOptions.size())) ) {
-								case 1:
-									if ( table.getGameTable()[2][0].getPlay().equals(" ") &&
-											table.getGameTable()[1][0].getPlay().equals(" ") &&
-											table.getGameTable()[1][1].getPlay().equals(" "))
-										return "2|0";
-									randOptions.remove((Integer) 1);
-									
-								case 2:
-									if ( table.getGameTable()[2][2].getPlay().equals(" ") &&
-											table.getGameTable()[1][2].getPlay().equals(" ") &&
-											table.getGameTable()[1][1].getPlay().equals(" "))
-										return "2|2";
-									randOptions.remove((Integer) 2);
-							}
-						
-						} while( randOptions.size() > 0 );
-					}
-					
-					if ( beforeLastPlay.equals("2|0") ) {
-						randOptions = new ArrayList<Integer>();
-						
-						randOptions.add(1); randOptions.add(2); randOptions.add(3);
-						
-						do {
-							switch ( randOptions.get(generator.nextInt(randOptions.size())) ) {
-								case 1:
-									if ( table.getGameTable()[1][1].getPlay().equals(" ") &&
-											table.getGameTable()[0][2].getPlay().equals(" ") &&
-											table.getGameTable()[2][2].getPlay().equals(" "))
-										return "1|1";
-									randOptions.remove(1);
-									
-								case 2:
-									if ( table.getGameTable()[0][2].getPlay().equals(" ") &&
-											table.getGameTable()[1][1].getPlay().equals(" ") &&
-											table.getGameTable()[2][2].getPlay().equals(" ") )
-										return "0|2";
-									randOptions.remove(2);
-									
-								case 3:
-									if ( table.getGameTable()[2][2].getPlay().equals(" ") &&
-											table.getGameTable()[2][1].getPlay().equals(" ") &&
-											table.getGameTable()[0][2].getPlay().equals(" ") )
-										return "2|2";		
-									randOptions.remove(3);
-							}
-						
-						} while( randOptions.size() > 0 );
-					}
-
-					if ( beforeLastPlay.equals("2|2") ) {
-						randOptions = new ArrayList<Integer>();
-						
-						randOptions.add(1); randOptions.add(2); randOptions.add(3);
-						
-						do {
-							switch ( randOptions.get(generator.nextInt(randOptions.size())) ) {
-								case 1:
-									if ( table.getGameTable()[0][0].getPlay().equals(" ") &&
-											table.getGameTable()[1][1].getPlay().equals(" ") &&
-											table.getGameTable()[0][1].getPlay().equals(" ") )
-										return "0|0";
-									randOptions.remove(1);
-									
-								case 2:
-									if ( table.getGameTable()[2][0].getPlay().equals(" ") &&
-											table.getGameTable()[1][1].getPlay().equals(" ") &&
-											table.getGameTable()[2][1].getPlay().equals(" "))
-										return "2|0";
-									randOptions.remove(2);
-									
-								case 3:
-									if ( table.getGameTable()[1][1].getPlay().equals(" ") &&
-											table.getGameTable()[0][0].getPlay().equals(" ") &&
-											table.getGameTable()[2][0].getPlay().equals(" "))
-										return "1|1";
-									randOptions.remove(3);
-							}
-						
-						} while ( randOptions.size() > 0 );
-					}
-				}
-				
-				/* =============== */
-				
-				randOptions = new ArrayList<Integer>();
-				
-				randOptions.add(1); randOptions.add(2); randOptions.add(3);
-				
-				do {
-					switch ( randOptions.get(generator.nextInt(randOptions.size())) ) {
-						case 1:
-							if ( table.getGameTable()[0][0].getPlay().equals(" ") ) {
-								// 2 0 / 1 0 / 1 1
-								if ( table.getGameTable()[2][0].getPlay().equals(" ") &&
-										table.getGameTable()[1][0].getPlay().equals(" ") &&
-										table.getGameTable()[1][2].getPlay().equals(" ") )
-									return "0|0";
-								
-								// 2 2 / 1 2/ 1 1
-								if ( table.getGameTable()[2][2].getPlay().equals(" ") &&
-										table.getGameTable()[1][2].getPlay().equals(" ") &&
-										table.getGameTable()[1][1].getPlay().equals(" ") )
-									return "0|0";
-							}
-							randOptions.remove((Integer) 1);
-						
-						case 2:
-							if ( table.getGameTable()[2][0].equals(" ") ) {
-								// 1 1 / 0 2 / 2 2
-								if ( table.getGameTable()[1][1].getPlay().equals(" ") &&
-										table.getGameTable()[0][2].getPlay().equals(" ") &&
-										table.getGameTable()[2][2].getPlay().equals(" ") )
-									return "2|0";
-								
-								// 0 2 / 1 1 / 2 2 
-								if ( table.getGameTable()[0][2].getPlay().equals(" ") &&
-										table.getGameTable()[1][1].getPlay().equals(" ") &&
-										table.getGameTable()[2][2].getPlay().equals(" ") )
-									return "2|0";
-								
-								// 2 2 / 2 1 / 0 2
-								if ( table.getGameTable()[2][2].getPlay().equals(" ") &&
-										table.getGameTable()[2][1].getPlay().equals(" ") &&
-										table.getGameTable()[0][2].getPlay().equals(" ") )
-									return "2|0";
-							}
-							randOptions.remove((Integer) 2);
-							
-						case 3:
-							if ( table.getGameTable()[2][2].getPlay().equals(" ") ) {
-								// 0 0 / 1 1 / 0 1
-								if ( table.getGameTable()[0][0].getPlay().equals(" ") &&
-										table.getGameTable()[1][1].getPlay().equals(" ") &&
-										table.getGameTable()[0][1].getPlay().equals(" ") )
-									return "2|2";
-								
-								// 2 0 / 1 1 / 2 1
-								if ( table.getGameTable()[2][0].getPlay().equals(" ") &&
-										table.getGameTable()[1][1].getPlay().equals(" ") &&
-										table.getGameTable()[2][1].getPlay().equals(" ") )
-									return "2|2";
-								
-								// 1 1 / 0 0 / 2 0
-								if ( table.getGameTable()[1][1].getPlay().equals(" ") &&
-										table.getGameTable()[0][0].getPlay().equals(" ") &&
-										table.getGameTable()[2][0].getPlay().equals(" ") )
-									return "2|2";
-								randOptions.remove((Integer) 3);
-							}
-					}
-				
-				} while ( randOptions.size() > 0 );
-			}
-			
-			/* FIM LASTPLAY 0|2 */
-			
-			if ( lastPlay.equals("1|0") ) {
-				if ( moreThanOnePlay ) {
-					if ( beforeLastPlay.equals("0|0") ) {
-						if ( table.getGameTable()[1][1].getPlay().equals(" ") &&
-								table.getGameTable()[2][2].getPlay().equals(" ") &&
-								table.getGameTable()[1][2].getPlay().equals(" ") )
-							return "1|1";
-					}
-					
-					if ( beforeLastPlay.equals("2|0") ) {
-						if ( table.getGameTable()[1][1].getPlay().equals(" ") &&
-								table.getGameTable()[1][2].getPlay().equals(" ") &&
-								table.getGameTable()[0][2].getPlay().equals(" ") )
-							return "1|1";
-					}
-				}
-				
-				if ( table.getGameTable()[0][0].getPlay().equals(" ") &&
-						table.getGameTable()[2][0].getPlay().equals(" ") ) {
-				
-					randPlays[0] = "0|0"; randPlays[1] = "2|0";
-					
-					return randPlays[generator.nextInt(randPlays.length)];
-				}
-			}
-			
-			/* FIM LASTPLAY 1|0 */
-			
-			if ( lastPlay.equals("1|1") ) {
-				if ( moreThanOnePlay ) {
-					if ( beforeLastPlay.equals("1|0") ) {
-						randOptions = new ArrayList<Integer>();
-						
-						randOptions.add(1); randOptions.add(2);
-						
-						do {
-							switch ( randOptions.get(generator.nextInt(randOptions.size())) ) {
-								case 1: 
-									if ( table.getGameTable()[0][0].getPlay().equals(" ") &&
-											table.getGameTable()[2][2].getPlay().equals(" ") &&
-											table.getGameTable()[2][0].getPlay().equals(" ") )
-										return "0|0";
-									randOptions.remove((Integer) 1);
-									
-								case 2:
-									if ( table.getGameTable()[2][0].getPlay().equals(" ") &&
-											table.getGameTable()[0][2].getPlay().equals(" ") &&
-											table.getGameTable()[0][0].getPlay().equals(" ") )
-										return "2|0";
-									randOptions.remove((Integer) 2);
-							}
-						
-						} while ( randOptions.size() > 0 );
-					}
-					
-					if ( beforeLastPlay.equals("1|2") ) {
-						randOptions = new ArrayList<Integer>();
-						
-						randOptions.add(1); randOptions.add(2);
-						
-						do {
-							switch ( randOptions.get(generator.nextInt(randOptions.size())) ) {
-								case 1:
-									if ( table.getGameTable()[0][2].getPlay().equals(" ") &&
-											table.getGameTable()[2][0].getPlay().equals(" ") &&
-											table.getGameTable()[2][2].getPlay().equals(" ") )
-										return "0|2";
-									randOptions.remove((Integer) 1);
-									
-								case 2:
-									if ( table.getGameTable()[2][2].getPlay().equals(" ") &&
-											table.getGameTable()[0][0].getPlay().equals(" ") &&
-											table.getGameTable()[0][2].getPlay().equals(" ") )
-										return "2|2";
-									randOptions.remove((Integer) 2);
-							}
-						
-						} while ( randOptions.size() > 0 );
-					}
-					
-					if ( beforeLastPlay.equals("0|0") ) {
-						randOptions = new ArrayList<Integer>();
-						
-						randOptions.add(1); randOptions.add(2); randOptions.add(3);
-						
-						do {
-							switch ( randOptions.get(generator.nextInt(randOptions.size())) ) {
-								case 1:
-									if ( table.getGameTable()[1][0].getPlay().equals(" ") &&
-											table.getGameTable()[1][2].getPlay().equals(" ") &&
-											table.getGameTable()[2][0].getPlay().equals(" ") )
-										return "1|0";
-									randOptions.remove((Integer) 1);
-									
-								case 2:
-									if ( table.getGameTable()[2][0].getPlay().equals(" ") &&
-											table.getGameTable()[1][0].getPlay().equals(" ") &&
-											table.getGameTable()[0][2].getPlay().equals(" ") )
-										return "2|0";
-									randOptions.remove((Integer) 2);
-									
-								case 3:
-									if ( table.getGameTable()[0][2].getPlay().equals(" ") &&
-											table.getGameTable()[2][0].getPlay().equals(" ") &&
-											table.getGameTable()[0][1].getPlay().equals(" ") )
-										return "0|2";
-									randOptions.remove((Integer) 3);
-							}
-						
-						} while ( randOptions.size() > 0 );
-					}
-					
-					if ( beforeLastPlay.equals("0|2") ) {
-						randOptions = new ArrayList<Integer>();
-						
-						randOptions.add(1); randOptions.add(2);
-						
-						do {
-							switch ( randOptions.get(generator.nextInt(randOptions.size())) ) {
-								case 1:
-									if ( table.getGameTable()[1][2].getPlay().equals(" ") &&
-											table.getGameTable()[2][2].getPlay().equals(" ") &&
-											table.getGameTable()[2][0].getPlay().equals(" ") )
-										return "1|2";
-									randOptions.remove((Integer) 1);
-									
-								case 2:
-									if ( table.getGameTable()[2][2].getPlay().equals(" ") &&
-											table.getGameTable()[1][2].getPlay().equals(" ") &&
-											table.getGameTable()[0][0].getPlay().equals(" ") )
-										return "2|2";
-									randOptions.remove((Integer) 2);
-							}
-						} while (randOptions.size() > 0);
-					}
-					
-					if ( beforeLastPlay.equals("2|0") ) {
-						randOptions = new ArrayList<Integer>();
-						
-						randOptions.add(1); randOptions.add(2);
-						
-						do {
-							switch ( randOptions.get(generator.nextInt(randOptions.size())) ) {
-								case 1:
-									if ( table.getGameTable()[1][0].getPlay().equals(" ") &&
-											table.getGameTable()[1][2].getPlay().equals(" ") &&
-											table.getGameTable()[0][2].getPlay().equals(" ") )
-										return "1|0";
-									randOptions.remove((Integer) 1);
-									
-								case 2:
-									if ( table.getGameTable()[2][0].getPlay().equals(" ") &&
-											table.getGameTable()[1][0].getPlay().equals(" ") &&
-											table.getGameTable()[0][2].getPlay().equals(" ") )
-										return "2|0";
-									randOptions.remove((Integer) 2);
-							}
-						} while (randOptions.size() > 0);
-					}
-					
-					if ( beforeLastPlay.equals("2|2") ) {
-						randOptions = new ArrayList<Integer>();
-						
-						randOptions.add(1); randOptions.add(2);
-						
-						do {
-							switch ( randOptions.get(generator.nextInt(randOptions.size())) ) {
-								case 1:
-									if ( table.getGameTable()[1][2].getPlay().equals(" ") &&
-											table.getGameTable()[0][2].getPlay().equals(" ") &&
-											table.getGameTable()[1][0].getPlay().equals(" ") )
-										return "1|2";
-									randOptions.remove((Integer) 1);
-									
-								case 2:
-									if ( table.getGameTable()[0][2].getPlay().equals(" ") &&
-											table.getGameTable()[1][2].getPlay().equals(" ") &&
-											table.getGameTable()[2][0].getPlay().equals(" ") )
-										return "2|0";
-									randOptions.remove((Integer) 2);
-							}
-						} while (randOptions.size() > 0);
-					}
-				}
-
-				/* ============= */
-		
-				randOptions = new ArrayList<Integer>();
-				
-				randOptions.add(1); randOptions.add(2); randOptions.add(3);
-				randOptions.add(4); randOptions.add(5); randOptions.add(5);
-				
-				do {
-					switch ( randOptions.get(generator.nextInt(randOptions.size())) ) {
-						case 1:
-							if ( table.getGameTable()[1][0].getPlay().equals(" ") ) {
-								// 0 0 / 2 2 / 2 0
-								if ( table.getGameTable()[0][0].getPlay().equals(" ") &&
-										table.getGameTable()[2][2].getPlay().equals(" ") &&
-										table.getGameTable()[2][0].getPlay().equals(" ") )
-									return "1|0";
-								
-								// 2 0 / 0 2 / 0 0
-								if ( table.getGameTable()[2][0].getPlay().equals(" ") &&
-										table.getGameTable()[0][2].getPlay().equals(" ") &&
-										table.getGameTable()[0][0].getPlay().equals(" ") )
-									return "1|0";
-							}
-							randOptions.remove((Integer) 1);
-							
-						case 2:
-							if ( table.getGameTable()[1][2].getPlay().equals(" ") ) {
-								// 0 2 / 2 0 / 2 2
-								if ( table.getGameTable()[0][2].getPlay().equals(" ") &&
-										table.getGameTable()[2][0].getPlay().equals(" ") &&
-										table.getGameTable()[2][2].getPlay().equals(" ") )
-									return "1|2";
-								
-								// 2 2 / 0 0 / 0 2
-								if ( table.getGameTable()[2][2].getPlay().equals(" ") &&
-										table.getGameTable()[0][0].getPlay().equals(" ") &&
-										table.getGameTable()[0][2].getPlay().equals(" ") )
-									return "1|2";
-							}
-							randOptions.remove((Integer) 2);
-							
-						case 3:
-							if ( table.getGameTable()[0][0].getPlay().equals(" ") ) {
-								// 1 0 / 1 2 / 2 0
-								if ( table.getGameTable()[1][0].getPlay().equals(" ") &&
-										table.getGameTable()[1][2].getPlay().equals(" ") &&
-										table.getGameTable()[2][0].getPlay().equals(" ") )
-									return "0|0";
-								
-								// 2 0 / 1 0 / 0 2
-								if ( table.getGameTable()[2][0].getPlay().equals(" ") &&
-										table.getGameTable()[1][0].getPlay().equals(" ") &&
-										table.getGameTable()[0][2].getPlay().equals(" ") )
-									return "0|0";
-								
-								// 0 2 / 2 0 / 0 1
-								if ( table.getGameTable()[0][2].getPlay().equals(" ") &&
-										table.getGameTable()[2][0].getPlay().equals(" ") &&
-										table.getGameTable()[0][1].getPlay().equals(" "))
-									return "0|0";
-							}
-							randOptions.remove((Integer) 3);
-							
-						case 4:
-							if ( table.getGameTable()[0][2].getPlay().equals(" ") ) {
-								// 1 2 / 2 2 / 2 0
-								if ( table.getGameTable()[1][2].getPlay().equals(" ") && 
-										table.getGameTable()[2][2].getPlay().equals(" ") &&
-										table.getGameTable()[2][0].getPlay().equals(" ") )
-									return "0|2";
-								
-								// 2 2 / 1 2 / 0 0
-								if ( table.getGameTable()[2][2].getPlay().equals(" ") &&
-										table.getGameTable()[1][2].getPlay().equals(" ") &&
-										table.getGameTable()[0][0].getPlay().equals(" ") &&
-										table.getGameTable()[2][0].getPlay().equals(" ") )
-									return "0|2";
-							}
-							randOptions.remove((Integer) 4);
-							
-						case 5:
-							if ( table.getGameTable()[2][0].getPlay().equals(" ") ) {
-								// 1 0 / 1 2 / 0 2
-								if ( table.getGameTable()[1][0].getPlay().equals(" ") &&
-										table.getGameTable()[1][2].getPlay().equals(" ") &&
-										table.getGameTable()[0][2].getPlay().equals(" ") )
-									return "2|0";
-								
-								// 2 0 / 1 0 / 0 2 
-								if ( table.getGameTable()[2][0].getPlay().equals(" ") &&
-										table.getGameTable()[1][0].getPlay().equals(" ") &&
-										table.getGameTable()[0][2].getPlay().equals(" ") )
-									return "2|0";
-							}
-							randOptions.remove((Integer) 5);
-							
-						case 6:
-							if ( table.getGameTable()[2][2].getPlay().equals(" ") ) {
-								// 1 2 / 0 2 / 1 0
-								if ( table.getGameTable()[1][2].getPlay().equals(" ") &&
-										table.getGameTable()[0][2].getPlay().equals(" ") &&
-										table.getGameTable()[1][0].getPlay().equals(" ") )
-									return "2|2";
-								
-								// 0 2 / 1 2 / 2 0
-								if ( table.getGameTable()[0][2].getPlay().equals(" ") &&
-										table.getGameTable()[1][2].getPlay().equals(" ") &&
-										table.getGameTable()[2][0].getPlay().equals(" ") )
-									return "2|2";
-							}
-							randOptions.remove((Integer) 6);
-					}
-				
-				} while ( randOptions.size() > 0 );
-				
-				/* */
-				
-				if ( table.getGameTable()[1][0].getPlay().equals(" ") &&
-						table.getGameTable()[1][2].getPlay().equals(" ") ) {
-				
-					randPlays[0] = "1|0"; randPlays[1] = "1|2";
-					
-					return randPlays[generator.nextInt(randPlays.length)];
-				}
-				
-				if ( table.getGameTable()[0][1].getPlay().equals(" ") &&
-						table.getGameTable()[2][1].getPlay().equals(" ") ) {
-				
-					randPlays[0] = "0|1"; randPlays[1] = "2|1";
-					
-					return randPlays[generator.nextInt(randPlays.length)];
-				}
-				
-				if ( table.getGameTable()[0][0].getPlay().equals(" ") &&
-						table.getGameTable()[2][2].getPlay().equals(" ") ) {
-				
-					randPlays[0] = "0|0"; randPlays[1] = "2|2";
-					
-					return randPlays[generator.nextInt(randPlays.length)];
-				}
-				
-				if ( table.getGameTable()[0][1].getPlay().equals(" ") &&
-						table.getGameTable()[2][1].getPlay().equals(" ") ) {
-				
-					randPlays[0] = "0|1"; randPlays[1] = "2|1";
-					
-					return randPlays[generator.nextInt(randPlays.length)];
-				}
-			}
-			
-			/* FIM LASTPLAY 1|1 */
-			
-			if ( lastPlay.equals("1|2") ) {
-				if ( table.getGameTable()[1][0].getPlay().equals(" ") &&
-						table.getGameTable()[1][1].getPlay().equals(" ") ) {
-				
-					randPlays[0] = "1|0"; randPlays[1] = "1|1";
-					
-					return randPlays[generator.nextInt(randPlays.length)];
-				}
-				
-				if ( table.getGameTable()[0][2].getPlay().equals(" ") &&
-						table.getGameTable()[2][2].getPlay().equals(" ") ) {
-				
-					randPlays[0] = "0|2"; randPlays[1] = "2|2";
-					
-					return randPlays[generator.nextInt(randPlays.length)];
-				}
-			}
-			
-			/* FIM LASTPLAY 1|2 */
-			
-			if ( lastPlay.equals("2|0") ) {
-				if ( table.getGameTable()[0][0].getPlay().equals(" ") &&
-						table.getGameTable()[1][0].getPlay().equals(" ") ) {
-				
-					randPlays[0] = "0|0"; randPlays[1] = "1|0";
-					
-					return randPlays[generator.nextInt(randPlays.length)];
-				}
-				
-				if ( table.getGameTable()[2][1].getPlay().equals(" ") &&
-						table.getGameTable()[2][2].getPlay().equals(" ") ) {
-					
-					randPlays[0] = "2|1"; randPlays[1] = "2|2";
-					
-					return randPlays[generator.nextInt(randPlays.length)];
-				}
-				
-				if ( table.getGameTable()[1][1].getPlay().equals(" ") &&
-						table.getGameTable()[0][2].getPlay().equals(" ") ) {
-				
-					randPlays[0] = "1|1"; randPlays[1] = "0|2";
-					
-					return randPlays[generator.nextInt(randPlays.length)];
-				}
-			}
-			
-			/* FIM LATPLAY 2|0 */
-			
-			if ( lastPlay.equals("2|1") ) {
-				if ( table.getGameTable()[2][0].getPlay().equals(" ") &&
-						table.getGameTable()[2][2].getPlay().equals(" ") ) {
-			
-					randPlays[0] = "2|0"; randPlays[1] = "2|2";
-					
-					return randPlays[generator.nextInt(randPlays.length)];
-				}
-				
-				if ( table.getGameTable()[1][1].getPlay().equals(" ") &&
-						table.getGameTable()[0][1].getPlay().equals(" ") ) {
-				
-					randPlays[0] = "1|1"; randPlays[1] = "0|1";
-					
-					return randPlays[generator.nextInt(randPlays.length)];
-				}
-			}
-			
-			/* FIM LASTPLAY 2|1 */
-			
-			if ( lastPlay.equals("2|2") ) {
-				if ( table.getGameTable()[2][0].getPlay().equals(" ") &&
-						table.getGameTable()[2][1].getPlay().equals(" ") ) {
-				
-					randPlays[0] = "2|0"; randPlays[1] = "2|1";
-					
-					return randPlays[generator.nextInt(randPlays.length)];
-				}
-				
-				if ( table.getGameTable()[0][2].getPlay().equals(" ") &&
-						table.getGameTable()[1][2].getPlay().equals(" ") ) {
-				
-					randPlays[0] = "0|2"; randPlays[1] = "1|2";
-					
-					return randPlays[generator.nextInt(randPlays.length)];
-				}
-				
-				if ( table.getGameTable()[0][0].getPlay().equals(" ") &&
-						table.getGameTable()[1][1].getPlay().equals(" ") ) {
-				
-					randPlays[0] = "0|0"; randPlays[1] = "1|1";
-					
-					return randPlays[generator.nextInt(randPlays.length)];
-				}
-			}
-			
-			/* FIM LASTPLAY 2|2 */
+		for(int x = 0; x < original.size(); x++) {
+			aux = new String(original.get(x));
+			copy.add(aux);
 		}
-		
-		return getFirstEmptySpot(table);
+		return copy;
 	}
 	
-	public String getFirstEmptySpot(Table table) {
-		ArrayList<String> randPlays = new ArrayList<String>();
-		String lastPlayerPlay = this.playerPlays.get(this.playerPlays.size() - 1);
-		Random generator = new Random();
+	private String bestPlay(Table table) {
+		Table auxT = table.clone();
+		Table auxTBackup = null;
+		String aux;
+		String play = null;
+		int[] chances = new int[2];
+		int[] biggerChance = new int[2];
 		
-		if ( lastPlayerPlay.equals("0|1") ||
-				lastPlayerPlay.equals("1|0") ||
-				lastPlayerPlay.equals("1|2") ||
-				lastPlayerPlay.equals("2|1") )
-			return "1|1";
-			
-		if ( table.getGameTable()[0][0].getPlay().equals(" ") ) randPlays.add("2|0");
-		if ( table.getGameTable()[2][2].getPlay().equals(" ") ) randPlays.add("0|2");
-		if ( table.getGameTable()[0][2].getPlay().equals(" ") ) randPlays.add("2|2");
-		if ( table.getGameTable()[2][0].getPlay().equals(" ") ) randPlays.add("0|0");
+		chances[0] = 0; chances[1] = 0;
+		biggerChance[0] = 0; biggerChance[1] = 0;
 		
-		if ( randPlays.size() > 0 ) {
-			return randPlays.get(generator.nextInt(randPlays.size()));
-		}
+		this.ownPlaysAux = copyOwnPlays(this.ownPlays);
 		
-		else {
-			for(int row = 0; row < table.getRows(); row++) {
-				for(int col = 0; col < table.getCols(); col++) {
-					if ( table.getGameTable()[row][col].getPlay().equals(" ") ) 
-						return row + "|" + col;
+		for(int x = 0; x < table.getRows(); x++) {
+			for(int y = 0; y < table.getCols(); y++) {
+				aux = x + "|" + y;
+				
+				if ( !checkAllPlays(aux) ) {
+					auxT.getGameTable()[x][y] = new Play(this.playPiece, "Computer", x, y);
+					auxTBackup = auxT.clone();
+					this.ownPlaysAux.add(x + "|" + y);
+					
+					for(int r = 0; r < table.getRows(); r++ ) {
+						for(int c = 0; c < table.getCols(); c++) {
+							aux = r + "|" + c;
+							
+							if ( !checkAllPlays(aux) ) {
+								this.ownPlaysAux.add(r + "|" + c);
+								auxT.getGameTable()[r][c] = new Play(this.playPiece, "Computer", r, c);
+								
+								chances[0] = calculateChancesToWin(auxT);
+								
+								for(int t = 0; t < table.getRows(); t++ ) {
+									for(int l = 0; l < table.getCols(); l++) {
+										aux = t + "|" + l;
+										
+										if ( !checkAllPlays(aux) ) {
+											this.ownPlaysAux.add(t + "|" + l);
+											auxT.getGameTable()[t][l] = new Play(this.playPiece, "Computer", t, l);
+											
+											chances[1] = calculatePlayerChancesToWin(auxT);
+											
+											if ( chances[1] > biggerChance[1] ) {
+												if ( table.getGameTable()[x][y].getPlay().equals(" ") ) {
+													biggerChance[1] = chances[1];
+													play = x + "|" + y;
+												}
+											}
+										}
+										auxT = auxTBackup.clone();
+									}
+								}
+								
+								if ( chances[0] >= biggerChance[0] ) {
+									if ( table.getGameTable()[x][y].getPlay().equals(" ") ) {
+										biggerChance[0] = chances[0];
+										play = x + "|" + y;
+									}
+								}
+								
+								else if ( chances[0] == biggerChance[0] ) {
+									if ( chances[1] >= biggerChance[1] ) {
+										if ( table.getGameTable()[x][y].getPlay().equals(" ") ) {
+											System.out.println("PASSEI AQUI WOW");
+											biggerChance[1] = chances[1];
+											play = x + "|" + y;
+										}
+									}
+								}
+							}
+							auxT = auxTBackup.clone();
+						}						
+					}
 				}
+				chances[0] = 0; chances[1] = 0;
 			}
+			this.ownPlaysAux = copyOwnPlays(this.ownPlays);
+			auxT = table.clone();
 		}
-		return null;
+		return play;
 	}
 	
-	public String checkPlayerAboutToWin(Table table) {		
+	private boolean checkAllPlays(String play) {
+		for(String aux : this.ownPlaysAux) {
+			if ( aux.equals(play) ) return true;
+		}
+		
+		for(String aux : this.ownPlays) {
+			if ( aux.equals(play) ) return true;
+		}
+		
+		for(String aux : this.playerPlaysAux) {
+			if ( aux.equals(play) ) return true;
+		}
+		
+		for(String aux : this.playerPlays) {
+			if ( aux.equals(play) ) return true;
+		}
+
+		return false;
+	}
+	
+	private String checkPlayerAboutToWin(Table table) {		
 		/* 
 		 * [X]   [X]   [ ]
 		 * [ ]   [ ]   [ ]
@@ -1413,9 +707,246 @@ public class PController {
 		return null;
 	}
 	
+	private Integer calculatePlayerChancesToWin(Table table) {		
+		Integer chances = 0;
+		
+		/* 
+		 * [X]   [X]   [ ]
+		 * [ ]   [ ]   [ ]
+		 * [ ]   [ ]   [ ]
+		*/
+		if ( searchPlay(0, 0) && searchPlay(0, 1) ) {
+			if ( table.getGameTable()[0][2].getPlay().equals(" ") )
+				chances++;
+		}
+		
+		/* 
+		 * [X]   [ ]   [X]
+		 * [ ]   [ ]   [ ]
+		 * [ ]   [ ]   [ ]
+		*/
+		if ( searchPlay(0, 0) && searchPlay(0, 2) )
+			if ( table.getGameTable()[0][1].getPlay().equals(" ") )
+				chances++;
+		
+		/* 
+		 * [ ]   [X]   [X]
+		 * [ ]   [ ]   [ ]
+		 * [ ]   [ ]   [ ]
+		*/
+		if ( searchPlay(0, 1) && searchPlay(0, 2) )
+			if ( table.getGameTable()[0][0].getPlay().equals(" ") )
+				chances++;
+
+		/* ------ */
+		
+		/* 
+		 * [X]   [ ]   [ ]
+		 * [X]   [ ]   [ ]
+		 * [ ]   [ ]   [ ]
+		*/
+		if ( searchPlay(0, 0) && searchPlay(1, 0) ) {
+			if ( table.getGameTable()[2][0].getPlay().equals(" ") )
+				chances++;
+		}
+		
+		/* 
+		 * [X]   [ ]   [ ]
+		 * [ ]   [ ]   [ ]
+		 * [X]   [ ]   [ ]
+		*/
+		if ( searchPlay(0, 0) && searchPlay(2, 0) )
+			if ( table.getGameTable()[1][0].getPlay().equals(" ") )
+				chances++;
+		
+		/* 
+		 * [ ]   [ ]   [ ]
+		 * [X]   [ ]   [ ]
+		 * [X]   [ ]   [ ]
+		*/
+		if ( searchPlay(1, 0) && searchPlay(2, 0) )
+			if ( table.getGameTable()[0][0].getPlay().equals(" ") )
+				chances++;
+		
+		/* ------ */
+		
+		/* 
+		 * [X]   [ ]   [ ]
+		 * [ ]   [X]   [ ]
+		 * [ ]   [ ]   [ ]
+		*/
+		if ( searchPlay(0, 0) && searchPlay(1, 1) )
+			if ( table.getGameTable()[2][2].getPlay().equals(" ") )
+				chances++;
+		
+		/* 
+		 * [X]   [ ]   [ ]
+		 * [ ]   [ ]   [ ]
+		 * [ ]   [ ]   [X]
+		*/
+		if ( searchPlay(0, 0) && searchPlay(2, 2) )
+			if ( table.getGameTable()[1][1].getPlay().equals(" ") )
+				chances++;
+		
+		/* 
+		 * [ ]   [ ]   [ ]
+		 * [ ]   [X]   [ ]
+		 * [ ]   [ ]   [X]
+		*/
+		if ( searchPlay(1, 1) && searchPlay(2, 2) )
+			if ( table.getGameTable()[0][0].getPlay().equals(" ") )
+				chances++;
+		
+		/* ------ */
+		
+		/* 
+		 * [ ]   [ ]   [ ]
+		 * [X]   [X]   [ ]
+		 * [ ]   [ ]   [ ]
+		*/
+		if ( searchPlay(1, 0) && searchPlay(1, 1) )
+			if ( table.getGameTable()[1][2].getPlay().equals(" ") )
+				chances++;
+		
+		/* 
+		 * [ ]   [ ]   [ ]
+		 * [X]   [ ]   [X]
+		 * [ ]   [ ]   [ ]
+		*/
+		if ( searchPlay(1, 0) && searchPlay(1, 2) )
+			if ( table.getGameTable()[1][1].getPlay().equals(" ") )
+				chances++;
+		
+		
+		/* 
+		 * [ ]   [ ]   [ ]
+		 * [ ]   [X]   [X]
+		 * [ ]   [ ]   [ ]
+		*/
+		if ( searchPlay(1, 1) && searchPlay(1, 2) )
+			if ( table.getGameTable()[1][0].getPlay().equals(" ") )
+				chances++;
+		
+		/* ------ */
+		
+		/* 
+		 * [ ]   [ ]   [ ]
+		 * [ ]   [ ]   [ ]
+		 * [X]   [X]   [ ]
+		*/
+		if ( searchPlay(2, 0) && searchPlay(2, 1) )
+			if ( table.getGameTable()[2][2].getPlay().equals(" ") )
+				chances++;
+		
+		/* 
+		 * [ ]   [ ]   [ ]
+		 * [ ]   [ ]   [ ]
+		 * [X]   [ ]   [X]
+		*/
+		if ( searchPlay(2, 0) && searchPlay(2, 2) )
+			if ( table.getGameTable()[2][1].getPlay().equals(" ") )
+				chances++;
+		
+		/* 
+		 * [ ]   [ ]   [ ]
+		 * [ ]   [ ]   [ ]
+		 * [ ]   [X]   [X]
+		*/
+		if ( searchPlay(2, 1) && searchPlay(2, 2) )
+			if ( table.getGameTable()[2][0].getPlay().equals(" ") )
+				chances++;
+		
+		/* ------ */
+		
+		/* 
+		 * [ ]   [X]   [ ]
+		 * [ ]   [X]   [ ]
+		 * [ ]   [ ]   [ ]
+		*/
+		if ( searchPlay(0, 1) && searchPlay(1, 1) )
+			if ( table.getGameTable()[2][1].getPlay().equals(" ") )
+				chances++;
+		
+		/* 
+		 * [ ]   [X]   [ ]
+		 * [ ]   [ ]   [ ]
+		 * [ ]   [X]   [ ]
+		*/
+		if ( searchPlay(0, 1) && searchPlay(2, 1) )
+			if ( table.getGameTable()[1][1].getPlay().equals(" ") )
+				chances++;
+		
+		/* 
+		 * [ ]   [ ]   [ ]
+		 * [ ]   [X]   [ ]
+		 * [ ]   [X]   [ ]
+		*/
+		if ( searchPlay(1, 1) && searchPlay(2, 1) )
+			if ( table.getGameTable()[0][1].getPlay().equals(" ") )
+				chances++;
+		
+		/* ------ */
+		
+		/* 
+		 * [ ]   [ ]   [X]
+		 * [ ]   [ ]   [X]
+		 * [ ]   [ ]   [ ]
+		*/
+		if ( searchPlay(0, 2) & searchPlay(1, 2) )
+			if ( table.getGameTable()[2][2].getPlay().equals(" ") )
+				chances++;
+		
+		/* 
+		 * [ ]   [ ]   [X]
+		 * [ ]   [ ]   [ ]
+		 * [ ]   [ ]   [X]
+		*/
+		if ( searchPlay(0, 2) && searchPlay(2, 2) )
+			if ( table.getGameTable()[1][2].getPlay().equals(" ") )
+				chances++;
+		
+		/* 
+		 * [ ]   [ ]   [ ]
+		 * [ ]   [ ]   [X]
+		 * [ ]   [ ]   [X]
+		*/
+		if ( searchPlay(1, 2) && searchPlay(2, 2) )
+			if ( table.getGameTable()[0][2].getPlay().equals(" ") )
+				chances++;
+		
+		/* ------ */
+		
+		/* 
+		 * [ ]   [ ]   [X]
+		 * [ ]   [X]   [ ]
+		 * [ ]   [ ]   [ ]
+		*/
+		if ( searchPlay(0, 2) && searchPlay(1, 1) )
+			if ( table.getGameTable()[2][0].getPlay().equals(" ") )
+				chances++;
+		
+		/* 
+		 * [ ]   [ ]   [X]
+		 * [ ]   [ ]   [ ]
+		 * [X]   [ ]   [ ]
+		*/
+		if ( searchPlay(0, 2) && searchPlay(2, 0) )
+			if ( table.getGameTable()[1][1].getPlay().equals(" ") )
+				chances++;
+		
+		/* 
+		 * [ ]   [ ]   [ ]
+		 * [ ]   [X]   [ ]
+		 * [X]   [ ]   [ ]
+		*/
+		if ( searchPlay(1, 1) && searchPlay(2, 0) )
+			if ( table.getGameTable()[0][2].getPlay().equals(" ") )
+				chances++;
+		
+		return chances;
+	}
+	
 	public boolean searchPlay(Integer col, Integer row) {
-		//00
-		//01
 		String [] playBeingCheck = new String[2];
 		
 		for (String s : playerPlays) {
@@ -1426,21 +957,184 @@ public class PController {
 					return true;
 			}
 		}
-		
 		return false;
 	}
 	
-	public boolean checkPlayerPlays() {
-		if ( playerPlays.size() == 0 ) 
-			return true;
+	public Integer calculateChancesToWin(Table table) {
+		int chances = 0;
 		
+		if ( this.ownPlaysAux.size() <= 1 )
+			return 0;
+		
+		if ( table.getGameTable()[0][0].getPlay().equals(this.playPiece) && 
+				table.getGameTable()[0][1].getPlay().equals(this.playPiece) ) {
+			if ( table.getGameTable()[0][2].getPlay().equals(" ") )
+				chances++;
+		}
+		
+		if ( table.getGameTable()[0][1].getPlay().equals(this.playPiece) && 
+				table.getGameTable()[0][2].getPlay().equals(this.playPiece) ) {
+			if ( table.getGameTable()[0][0].getPlay().equals(" ") )
+				chances++;
+		}
+		
+		if ( table.getGameTable()[0][0].getPlay().equals(this.playPiece) && 
+				table.getGameTable()[0][2].getPlay().equals(this.playPiece) ) {
+			if ( table.getGameTable()[0][1].getPlay().equals(" ") )
+				chances++;
+		}
+		
+		/* --------------- */
+
+		if ( table.getGameTable()[1][0].getPlay().equals(this.playPiece) && 
+				table.getGameTable()[1][1].getPlay().equals(this.playPiece) ) {
+			if ( table.getGameTable()[1][2].getPlay().equals(" ") )
+				chances++;
+		}
+		
+		if ( table.getGameTable()[1][1].getPlay().equals(this.playPiece) && 
+				table.getGameTable()[1][2].getPlay().equals(this.playPiece) ) {
+			if ( table.getGameTable()[1][0].getPlay().equals(" ") )
+				chances++;
+		}
+		
+		if ( table.getGameTable()[1][0].getPlay().equals(this.playPiece) && 
+				table.getGameTable()[1][2].getPlay().equals(this.playPiece) ) {
+			if ( table.getGameTable()[1][1].getPlay().equals(" ") )
+				chances++;
+		}
+		
+		/* ------------------ */
+		
+		if ( table.getGameTable()[2][0].getPlay().equals(this.playPiece) && 
+				table.getGameTable()[2][1].getPlay().equals(this.playPiece) ) {
+			if ( table.getGameTable()[2][2].getPlay().equals(" ") )
+				chances++;
+		}
+		
+		if ( table.getGameTable()[2][1].getPlay().equals(this.playPiece) && 
+				table.getGameTable()[2][2].getPlay().equals(this.playPiece) ) {
+			if ( table.getGameTable()[2][0].getPlay().equals(" ") )
+				chances++;
+		}
+		
+		if ( table.getGameTable()[2][0].getPlay().equals(this.playPiece) && 
+				table.getGameTable()[2][2].getPlay().equals(this.playPiece) ) {
+			if ( table.getGameTable()[2][1].getPlay().equals(" ") )
+				chances++;
+		}
+		
+		/* ------------------- */
+		
+		if ( table.getGameTable()[0][0].getPlay().equals(this.playPiece) && 
+				table.getGameTable()[1][0].getPlay().equals(this.playPiece) ) {
+			if ( table.getGameTable()[2][0].getPlay().equals(" ") )
+				chances++;
+		}
+		
+		if ( table.getGameTable()[1][0].getPlay().equals(this.playPiece) && 
+				table.getGameTable()[2][0].getPlay().equals(this.playPiece) ) {
+			if ( table.getGameTable()[0][0].getPlay().equals(" ") )
+				chances++;
+		}
+		
+		if ( table.getGameTable()[0][0].getPlay().equals(this.playPiece) && 
+				table.getGameTable()[2][0].getPlay().equals(this.playPiece) ) {
+			if ( table.getGameTable()[1][0].getPlay().equals(" ") )
+				chances++;
+		}
+		
+		/* --------------------- */
+		
+		if ( table.getGameTable()[0][1].getPlay().equals(this.playPiece) && 
+				table.getGameTable()[1][1].getPlay().equals(this.playPiece) ) {
+			if ( table.getGameTable()[2][1].getPlay().equals(" ") )
+				chances++;
+		}
+		
+		if ( table.getGameTable()[1][1].getPlay().equals(this.playPiece) && 
+				table.getGameTable()[2][1].getPlay().equals(this.playPiece) ) {
+			if ( table.getGameTable()[0][1].getPlay().equals(" ") )
+				chances++;
+		}
+		
+		if ( table.getGameTable()[0][1].getPlay().equals(this.playPiece) && 
+				table.getGameTable()[2][1].getPlay().equals(this.playPiece) ) {
+			if ( table.getGameTable()[1][1].getPlay().equals(" ") )
+				chances++;
+		}
+		
+		/* ---------------------- */
+		
+		if ( table.getGameTable()[0][2].getPlay().equals(this.playPiece) && 
+				table.getGameTable()[1][2].getPlay().equals(this.playPiece) ) {
+			if ( table.getGameTable()[2][2].getPlay().equals(" ") )
+				chances++;
+		}
+		
+		if ( table.getGameTable()[1][2].getPlay().equals(this.playPiece) && 
+				table.getGameTable()[2][2].getPlay().equals(this.playPiece) ) {
+			if ( table.getGameTable()[0][2].getPlay().equals(" ") )
+				chances++;
+		}
+		
+		if ( table.getGameTable()[0][2].getPlay().equals(this.playPiece) && 
+				table.getGameTable()[2][2].getPlay().equals(this.playPiece) ) {
+			if ( table.getGameTable()[1][2].getPlay().equals(" ") )
+				chances++;
+		}
+		
+		/* ------------------------ */
+		
+		if ( table.getGameTable()[0][0].getPlay().equals(this.playPiece) && 
+				table.getGameTable()[1][1].getPlay().equals(this.playPiece) ) {
+			if ( table.getGameTable()[2][2].getPlay().equals(" ") )
+				chances++;
+		}
+		
+		if ( table.getGameTable()[1][1].getPlay().equals(this.playPiece) && 
+				table.getGameTable()[2][2].getPlay().equals(this.playPiece) ) {
+			if ( table.getGameTable()[0][0].getPlay().equals(" ") )
+				chances++;
+		}
+		
+		if ( table.getGameTable()[0][0].getPlay().equals(this.playPiece) && 
+				table.getGameTable()[2][2].getPlay().equals(this.playPiece) ) {
+			if ( table.getGameTable()[1][1].getPlay().equals(" ") )
+				chances++;
+		}
+		
+		/* ------------------------- */
+		
+		if ( table.getGameTable()[0][2].getPlay().equals(this.playPiece) && 
+				table.getGameTable()[1][1].getPlay().equals(this.playPiece) ) {
+			if ( table.getGameTable()[2][0].getPlay().equals(" ") )
+				chances++;
+		}
+		
+		if ( table.getGameTable()[1][1].getPlay().equals(this.playPiece) && 
+				table.getGameTable()[2][0].getPlay().equals(this.playPiece) ) {
+			if ( table.getGameTable()[0][2].getPlay().equals(" ") )
+				chances++;
+		}
+		
+		if ( table.getGameTable()[0][2].getPlay().equals(this.playPiece) && 
+				table.getGameTable()[2][0].getPlay().equals(this.playPiece) ) {
+			if ( table.getGameTable()[1][1].getPlay().equals(" ") )
+				chances++;
+		}
+		return chances;
+	}
+	
+	public boolean checkPlayerPlays() {
+		if ( this.playerPlays.size() == 0 ) 
+			return true;
 		return false;
 	}
 	
 	public boolean checkOwnPlays() {
-		if ( ownPlays.size() == 0 )
+		if ( this.ownPlays.size() == 0 )
 			return true;
-			
 		return false;
 	}
 	
@@ -1455,14 +1149,18 @@ public class PController {
 			sb.append("|");
 			sb.append(play.getRow());
 			
-			playerPlays.add(sb.toString());
+			this.playerPlays.add(sb.toString());
 			
 			return true;
 		}
 	}
+	
+	public void remove(String availablePlayToRemove) {
+		this.availablePlays.remove(availablePlayToRemove);
+	}
 
 	public String getPlayPiece() {
-		return playPiece;
+		return this.playPiece;
 	}
 	
 }

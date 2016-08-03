@@ -23,6 +23,19 @@ public class Table {
 			}
 		}
 	}
+	
+	public Table clone() {
+		Table table = new Table(this.getCols(), this.getRows());
+		table.setGameTable(new Play[this.getCols()][this.getRows()]);
+		
+		for(int x = 0; x < this.getRows(); x++) {
+			for(int y = 0; y < this.getCols(); y++) {
+				table.getGameTable()[x][y] = this.getGameTable()[x][y];
+			}
+		}
+		
+		return table;
+	}
 
 	public Integer getCols() {
 		return cols;
